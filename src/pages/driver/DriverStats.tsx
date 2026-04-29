@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { BarChart3, TrendingUp, Truck, CheckCircle2, Euro, Clock } from 'lucide-react';
 import { format } from 'date-fns';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, MapPin, Users, Loader2, Play } from 'lucide-react';
+import { Camera, MapPin, Users, Loader2, Play, CheckCircle2 } from 'lucide-react';
 import { db, storage } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
