@@ -35,10 +35,12 @@ export default function DriverProfile() {
     firstName: '',
     lastName: '',
     dni: '',
-    hourlyRate: 0,
+    kmRate: 0,
+    extraHourRate: 0,
     status: 'active',
     vehicleType: '',
     vehiclePlate: '',
+    markedHours: 9,
   });
 
   useEffect(() => {
@@ -53,10 +55,12 @@ export default function DriverProfile() {
             firstName: data.firstName || '',
             lastName: data.lastName || '',
             dni: data.dni || '',
-            hourlyRate: data.hourlyRate || 0,
+            kmRate: data.kmRate || 0,
+            extraHourRate: data.extraHourRate || 0,
             status: data.status || 'active',
             vehicleType: data.vehicleType || '',
             vehiclePlate: data.vehiclePlate || '',
+            markedHours: data.markedHours || 9,
           });
         }
 
@@ -85,9 +89,11 @@ export default function DriverProfile() {
     try {
       await updateDoc(doc(db, 'users', id), {
         ...formData,
-        hourlyRate: Number(formData.hourlyRate),
+        kmRate: Number(formData.kmRate),
+        extraHourRate: Number(formData.extraHourRate),
+        markedHours: Number(formData.markedHours),
       });
-      setDriver({ ...driver, ...formData, hourlyRate: Number(formData.hourlyRate) });
+      setDriver({ ...driver, ...formData, kmRate: Number(formData.kmRate), extraHourRate: Number(formData.extraHourRate) });
       setIsEditing(false);
     } catch (err) {
       console.error('Error updating driver:', err);
@@ -120,12 +126,27 @@ export default function DriverProfile() {
     });
 
     const totalHours = monthRoutes.reduce((a, r) => a + routeHours(r), 0);
+    const totalExtraHours = monthRoutes.reduce((a, r) => {
+      const h = routeHours(r);
+      const threshold = driver?.markedHours || 9;
+      return a + Math.max(0, h - threshold);
+    }, 0);
     const totalKm = monthRoutes.reduce((a, r) => a + ((Number(r.endKm) || 0) - (Number(r.startKm) || 0)), 0);
     const totalDeliveries = monthRoutes.reduce((a, r) => a + (Number(r.totalDeliveries) || 0), 0);
-    const monthlyPay = monthRoutes.reduce((a, r) => a + (Number(r.totalCost) || routeHours(r) * (driver?.hourlyRate || 0)), 0);
+    
+    const monthlyPay = monthRoutes.reduce((a, r) => {
+      if (Number(r.totalCost)) return a + Number(r.totalCost);
+      const h = routeHours(r);
+      const km = (Number(r.endKm) || 0) - (Number(r.startKm) || 0);
+      const threshold = driver?.markedHours || 9;
+      const extra = Math.max(0, h - threshold);
+      const cost = (km * (driver?.kmRate || 0)) + (extra * (driver?.extraHourRate || 0));
+      return a + cost;
+    }, 0);
+
     const co2 = totalKm * co2Factor(driver?.vehicleType || '');
 
-    return { totalHours, totalKm, totalDeliveries, monthlyPay, co2 };
+    return { totalHours, totalExtraHours, totalKm, totalDeliveries, monthlyPay, co2 };
   };
 
   if (loading) return (
@@ -206,59 +227,87 @@ export default function DriverProfile() {
 
           {/* Edit form */}
           {isEditing && (
-            <form onSubmit={handleUpdate} className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
-              <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest">Editar Datos</h3>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-white/40 uppercase">Nombre</label>
-                  <input className={inputCls} value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} />
+            <form onSubmit={handleUpdate} className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-6">
+              <div>
+                <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <User className="w-4 h-4" /> Información Personal
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Nombre</label>
+                    <input className={inputCls} value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Apellidos</label>
+                    <input className={inputCls} value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-white/40 uppercase">Apellidos</label>
-                  <input className={inputCls} value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-white/40 uppercase">DNI / NIE</label>
-                <input className={inputCls} value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-white/40 uppercase">€ / Hora</label>
-                <input type="number" step="0.01" className={inputCls} value={formData.hourlyRate} onChange={e => setFormData({ ...formData, hourlyRate: Number(e.target.value) })} />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-white/40 uppercase">Estado</label>
-                <select className={inputCls} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                  <option value="active">Activo</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-              </div>
-
-              <div className="border-t border-white/5 pt-4 space-y-3">
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest flex items-center gap-1.5"><Truck className="w-3 h-3" /> Vehículo</p>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-white/40 uppercase">Tipo de Vehículo</label>
-                  <select className={inputCls} value={formData.vehicleType} onChange={e => setFormData({ ...formData, vehicleType: e.target.value })}>
-                    <option value="">Sin asignar</option>
-                    {VEHICLE_TYPES.map(v => (
-                      <option key={v.value} value={v.value}>{v.label} — {v.co2} kg CO₂/km</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-white/40 uppercase">Matrícula</label>
-                  <input className={inputCls} placeholder="Ej. 1234 ABC" value={formData.vehiclePlate} onChange={e => setFormData({ ...formData, vehiclePlate: e.target.value.toUpperCase() })} />
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">DNI / NIE</label>
+                    <input className={inputCls} value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Estado</label>
+                    <select className={inputCls} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                      <option value="active">Activo</option>
+                      <option value="pending">Pendiente</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <button disabled={saving} className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Guardar Cambios
+              <div className="pt-4 border-t border-white/5">
+                <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Euro className="w-4 h-4" /> Configuración de Pagos
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Tarifa KM (€/km)</label>
+                    <div className="relative">
+                      <input type="number" step="0.01" className={inputCls} value={formData.kmRate} onChange={e => setFormData({ ...formData, kmRate: Number(e.target.value) })} />
+                      <Euro className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Hora Extra (€/h)</label>
+                    <div className="relative">
+                      <input type="number" step="0.01" className={inputCls} value={formData.extraHourRate} onChange={e => setFormData({ ...formData, extraHourRate: Number(e.target.value) })} />
+                      <Clock className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-1.5">
+                  <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Jornada Marcada (Horas base)</label>
+                  <input type="number" step="0.5" className={inputCls} value={formData.markedHours} onChange={e => setFormData({ ...formData, markedHours: Number(e.target.value) })} />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/5">
+                <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Truck className="w-4 h-4" /> Vehículo Asignado
+                </h3>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Tipo de Vehículo</label>
+                    <select className={inputCls} value={formData.vehicleType} onChange={e => setFormData({ ...formData, vehicleType: e.target.value })}>
+                      <option value="">Sin asignar</option>
+                      {VEHICLE_TYPES.map(v => (
+                        <option key={v.value} value={v.value}>{v.label} — {v.co2} kg CO₂/km</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Matrícula</label>
+                    <input className={inputCls} placeholder="Ej. 1234 ABC" value={formData.vehiclePlate} onChange={e => setFormData({ ...formData, vehiclePlate: e.target.value.toUpperCase() })} />
+                  </div>
+                </div>
+              </div>
+
+              <button disabled={saving} className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 mt-4">
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                Actualizar Perfil
               </button>
             </form>
           )}
@@ -266,21 +315,27 @@ export default function DriverProfile() {
           {/* Payroll summary (view mode) */}
           {!isEditing && (
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
-              <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest flex items-center gap-2">
-                <Euro className="w-4 h-4 text-emerald-400" /> Pago — Mes Actual
+              <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest flex items-center gap-2">
+                <Euro className="w-4 h-4 text-emerald-400" /> Tarifas Vigentes
               </h3>
-              <div className="p-4 bg-white/5 rounded-2xl flex items-center justify-between">
-                <p className="text-sm text-white/60">Tarifa</p>
-                <p className="text-2xl font-bold text-white">{driver?.hourlyRate || 0} €<span className="text-xs text-white/40 font-normal">/h</span></p>
-              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 bg-blue-500/10 rounded-2xl">
-                  <p className="text-[10px] text-blue-400 uppercase font-bold mb-1">Horas Mes</p>
-                  <p className="text-xl font-bold text-white">{stats.totalHours.toFixed(1)}h</p>
+                <div className="p-4 bg-white/5 rounded-2xl">
+                  <p className="text-[10px] text-white/40 uppercase font-bold mb-1">KM</p>
+                  <p className="text-xl font-bold text-white">{driver?.kmRate || 0}<span className="text-xs text-white/40 font-normal ml-1">€/km</span></p>
                 </div>
-                <div className="p-4 bg-emerald-500/10 rounded-2xl">
-                  <p className="text-[10px] text-emerald-400 uppercase font-bold mb-1">Total Mes</p>
-                  <p className="text-xl font-bold text-white">{stats.monthlyPay.toFixed(2)}€</p>
+                <div className="p-4 bg-white/5 rounded-2xl">
+                  <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Hora Extra</p>
+                  <p className="text-xl font-bold text-white">{driver?.extraHourRate || 0}<span className="text-xs text-white/40 font-normal ml-1">€/h</span></p>
+                </div>
+              </div>
+              <div className="p-4 bg-blue-500/10 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-blue-400 uppercase font-bold">Pago Total Mes</p>
+                  <p className="text-2xl font-bold text-white mt-1">{stats.monthlyPay.toFixed(2)}€</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-white/40 uppercase font-bold">Horas Extra</p>
+                  <p className="text-sm font-bold text-white">{stats.totalExtraHours.toFixed(1)}h</p>
                 </div>
               </div>
             </div>
@@ -342,7 +397,10 @@ export default function DriverProfile() {
                     const hasSubmitted = !!route.submittedHours;
                     const km = (Number(route.endKm) || 0) - (Number(route.startKm) || 0);
                     const co2 = km * co2Factor(driver?.vehicleType || '');
-                    const pay = Number(route.totalCost) || hours * (driver?.hourlyRate || 0);
+                    
+                    const threshold = driver?.markedHours || 9;
+                    const extraHours = Math.max(0, hours - threshold);
+                    const pay = Number(route.totalCost) || (km * (driver?.kmRate || 0)) + (extraHours * (driver?.extraHourRate || 0));
 
                     return (
                       <tr key={route.id} className="hover:bg-white/[0.03] transition-colors">

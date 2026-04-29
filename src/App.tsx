@@ -7,6 +7,7 @@ import StartRoute from './pages/driver/StartRoute';
 import EndRoute from './pages/driver/EndRoute';
 import Emergency from './pages/driver/Emergency';
 import DriverStats from './pages/driver/DriverStats';
+import UserProfile from './pages/driver/UserProfile';
 import Dashboard from './pages/manager/Dashboard';
 import DriverDirectory from './pages/manager/DriverDirectory';
 import DriverProfile from './pages/manager/DriverProfile';
@@ -14,6 +15,7 @@ import MapView from './pages/manager/MapView';
 import CalendarView from './pages/manager/CalendarView';
 import ExcelView from './pages/manager/ExcelView';
 import LocationsView from './pages/manager/LocationsView';
+import LocationDetail from './pages/manager/LocationDetail';
 import PendingApproval from './pages/auth/PendingApproval';
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -101,6 +103,7 @@ function App() {
         <Route path="end" element={<EndRoute />} />
         <Route path="emergency" element={<Emergency />} />
         <Route path="stats" element={<DriverStats />} />
+        <Route path="profile" element={<UserProfile />} />
       </Route>
 
       {/* Manager Routes */}
@@ -117,6 +120,7 @@ function App() {
         <Route path="calendar" element={<CalendarView />} />
         <Route path="excel" element={<ExcelView />} />
         <Route path="locations" element={<LocationsView />} />
+        <Route path="locations/:id" element={<LocationDetail />} />
       </Route>
     </Routes>
   );

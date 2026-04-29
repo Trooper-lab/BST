@@ -18,6 +18,7 @@ export default function DriverLayout() {
   const navItems = [
     { icon: Truck, label: 'Reparto', path: '/driver/start' },
     { icon: BarChart3, label: 'Stats', path: '/driver/stats' },
+    { icon: User, label: 'Perfil', path: '/driver/profile' },
     { icon: AlertTriangle, label: 'SOS', path: '/driver/emergency', color: 'text-red-500' },
   ];
 
@@ -25,7 +26,10 @@ export default function DriverLayout() {
     <div className="min-h-screen bg-[#0f172a] text-white pb-24">
       {/* Header */}
       <header className="glass p-4 sticky top-0 z-10 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <button 
+          onClick={() => navigate('/driver/profile')}
+          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
+        >
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
             <User className="w-6 h-6" />
           </div>
@@ -35,7 +39,7 @@ export default function DriverLayout() {
               {profile?.firstName} {profile?.lastName}
             </h2>
           </div>
-        </div>
+        </button>
         <button 
           onClick={handleLogout}
           className="p-2 text-gray-400 hover:text-white transition-colors"

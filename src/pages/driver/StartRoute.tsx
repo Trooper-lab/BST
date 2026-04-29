@@ -5,18 +5,19 @@ import { db, storage } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuthStore } from '../../store/useAuthStore';
+import { findClosestLocation } from '../../lib/geoUtils';
 
 export default function StartRoute() {
   const [kmStart, setKmStart] = useState('');
-  const [hasHelper, setHasHelper] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [centers, setCenters] = useState<any[]>([]);
   const [selectedCenter, setSelectedCenter] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasHelper, setHasHelper] = useState(false);
   
   const navigate = useNavigate();
-  const { user, activeRoute, setActiveRoute } = useAuthStore();
+  const { user, profile, activeRoute, setActiveRoute } = useAuthStore();
 
   useEffect(() => {
     // If a route is already active, skip the start form
@@ -29,11 +30,19 @@ export default function StartRoute() {
     const fetchCenters = async () => {
       const q = query(collection(db, 'locations'), orderBy('name', 'asc'));
       const snapshot = await getDocs(q);
-      setCenters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const centerData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCenters(centerData);
+      
+      // If we already have location, try to find closest now
+      if (location && centerData.length > 0) {
+        const closest = findClosestLocation(location.lat, location.lng, centerData, 2);
+        if (closest) {
+          setSelectedCenter(closest.name);
+        }
+      }
     };
     fetchCenters();
 
-    // Auto-capture GPS
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
@@ -41,6 +50,30 @@ export default function StartRoute() {
       );
     }
   }, [activeRoute, navigate]);
+
+  const [detectedCenter, setDetectedCenter] = useState<any | null>(null);
+
+  // Proximity check whenever location or centers update
+  useEffect(() => {
+    if (location && centers.length > 0) {
+      const closest = findClosestLocation(location.lat, location.lng, centers, 2);
+      if (closest) {
+        setDetectedCenter(closest);
+        // If nothing selected yet, auto-select
+        if (!selectedCenter) {
+          setSelectedCenter(closest.name);
+        }
+      } else {
+        setDetectedCenter(null);
+      }
+    }
+  }, [location, centers, selectedCenter]);
+
+  useEffect(() => {
+    if (profile?.fixedHelper) {
+      setHasHelper(true);
+    }
+  }, [profile]);
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,65 +120,97 @@ export default function StartRoute() {
         </h2>
 
         <form onSubmit={handleStart} className="space-y-6">
-          {/* Center Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Centro de Salida</label>
-            <select
-              value={selectedCenter}
-              onChange={(e) => setSelectedCenter(e.target.value)}
-              className="w-full bg-slate-800/50 border border-gray-700 rounded-xl py-4 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none"
-              required
-            >
-              <option value="" disabled>Selecciona centro...</option>
-              {centers.map(center => (
-                <option key={center.id} value={center.name}>{center.name}</option>
-              ))}
-            </select>
-          </div>
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-6">
+              {/* Center Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-400">Centro de Salida</label>
+                  {detectedCenter && (
+                    <span className="text-[10px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                      <CheckCircle2 className="w-3 h-3" /> CERCANO
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={selectedCenter}
+                  onChange={(e) => setSelectedCenter(e.target.value)}
+                  className={`w-full bg-slate-800/50 border rounded-xl py-4 px-4 text-white focus:outline-none focus:ring-2 appearance-none transition-all ${
+                    detectedCenter && selectedCenter === detectedCenter.name 
+                      ? 'border-green-500/50 ring-blue-500/20' 
+                      : 'border-gray-700 focus:ring-blue-500/50'
+                  }`}
+                  required
+                >
+                  <option value="" disabled>Selecciona centro...</option>
+                  {centers.map(center => (
+                    <option key={center.id} value={center.name}>{center.name}</option>
+                  ))}
+                </select>
+                {detectedCenter && selectedCenter !== detectedCenter.name && (
+                  <p className="text-[10px] text-gray-500 mt-1 italic">
+                    Estás cerca de <span className="text-green-400 font-bold">{detectedCenter.name}</span>
+                  </p>
+                )}
+              </div>
 
-          {/* KM Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Kilometraje Inicial</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={kmStart}
-                onChange={(e) => setKmStart(e.target.value)}
-                className="w-full bg-slate-800/50 border border-gray-700 rounded-xl py-4 px-4 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                placeholder="00000"
-                required
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">KM</span>
+              {/* KM Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Kilometraje Inicial</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={kmStart}
+                    onChange={(e) => setKmStart(e.target.value)}
+                    className="w-full bg-slate-800/50 border border-gray-700 rounded-xl py-4 px-4 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="00000"
+                    required
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">KM</span>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Photo Upload */}
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-dashed border-gray-700 bg-slate-800/30 hover:bg-slate-800/50 cursor-pointer transition-all group">
-              <Camera className="w-8 h-8 text-gray-500 mb-2 group-hover:text-blue-400" />
-              <span className="text-xs text-gray-500">Subir Foto</span>
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={(e) => setImage(e.target.files?.[0] || null)}
-                className="hidden" 
-              />
-            </label>
-            <div className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-700 bg-slate-800/30">
-              <MapPin className={`w-8 h-8 mb-2 ${location ? 'text-green-500' : 'text-gray-500'}`} />
-              <span className="text-[10px] text-gray-500">
-                {location ? 'Localización OK' : 'Capturando GPS...'}
-              </span>
+            {/* Side Automatic Info */}
+            <div className="flex flex-col gap-4 pt-7">
+              <div 
+                onClick={() => {
+                  if (!location && navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                      (err) => console.error("GPS Error:", err)
+                    );
+                  }
+                }}
+                className={`flex flex-col items-center justify-center w-20 h-24 rounded-2xl border transition-all cursor-pointer ${location ? 'border-green-500/50 bg-green-500/5' : 'border-red-500/30 bg-red-500/5 animate-pulse'}`}
+              >
+                <MapPin className={`w-6 h-6 mb-1 ${location ? 'text-green-500' : 'text-red-400'}`} />
+                <span className={`text-[8px] text-center px-1 font-bold ${location ? 'text-green-500' : 'text-red-400'}`}>
+                  {location ? 'GPS OK' : 'REINTENTAR'}
+                </span>
+              </div>
+              
+              <label className={`flex flex-col items-center justify-center w-20 h-24 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${image ? 'border-blue-500/50 bg-blue-500/5' : 'border-gray-700 bg-slate-800/30 hover:bg-slate-800/50'}`}>
+                <Camera className={`w-6 h-6 mb-1 ${image ? 'text-blue-400' : 'text-gray-500'}`} />
+                <span className="text-[8px] text-center px-1 text-gray-500 font-bold">{image ? 'FOTO OK' : 'SUBIR FOTO'}</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => setImage(e.target.files?.[0] || null)}
+                  className="hidden" 
+                />
+              </label>
             </div>
           </div>
 
           {/* Helper Toggle */}
           <button
             type="button"
-            onClick={() => setHasHelper(!hasHelper)}
+            onClick={() => !profile?.fixedHelper && setHasHelper(!hasHelper)}
+            disabled={profile?.fixedHelper}
             className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
               hasHelper ? 'bg-blue-600/20 border-blue-500/50' : 'bg-slate-800/30 border-gray-700'
-            }`}
+            } ${profile?.fixedHelper ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center gap-3">
               <Users className={hasHelper ? 'text-blue-400' : 'text-gray-500'} />

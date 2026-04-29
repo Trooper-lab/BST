@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
-type SortKey = 'name' | 'role' | 'status' | 'hourlyRate' | 'dni';
+type SortKey = 'name' | 'role' | 'status' | 'kmRate' | 'dni';
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-emerald-500/10 text-emerald-400',
@@ -54,7 +54,7 @@ const DriverDirectory = () => {
         case 'name':       av = `${a.firstName} ${a.lastName}`; bv = `${b.firstName} ${b.lastName}`; break;
         case 'role':       av = a.role || ''; bv = b.role || ''; break;
         case 'status':     av = a.status || ''; bv = b.status || ''; break;
-        case 'hourlyRate': av = Number(a.hourlyRate) || 0; bv = Number(b.hourlyRate) || 0; break;
+        case 'kmRate':     av = Number(a.kmRate) || 0; bv = Number(b.kmRate) || 0; break;
         case 'dni':        av = a.dni || ''; bv = b.dni || ''; break;
         default: av = ''; bv = '';
       }
@@ -143,7 +143,7 @@ const DriverDirectory = () => {
                   <th className="px-4 py-3 text-[10px] font-bold text-white/40 uppercase tracking-widest whitespace-nowrap">Email</th>
                   <Th col="dni" label="DNI / NIE" />
                   <Th col="role" label="Tipo" />
-                  <Th col="hourlyRate" label="€/hora" />
+                   <Th col="kmRate" label="€/km" />
                   <Th col="status" label="Estado" />
                   <th className="px-4 py-3" />
                 </tr>
@@ -173,7 +173,7 @@ const DriverDirectory = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-white/70 tabular-nums">
-                      {driver.hourlyRate ? `${Number(driver.hourlyRate).toFixed(2)} €` : '—'}
+                      {driver.kmRate ? `${Number(driver.kmRate).toFixed(2)} €` : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${STATUS_STYLES[driver.status] || 'bg-white/5 text-white/30'}`}>

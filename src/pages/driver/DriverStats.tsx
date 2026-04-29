@@ -5,22 +5,31 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { BarChart3, TrendingUp, Truck, CheckCircle2, Euro, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export default function DriverStats() {
+  const [viewType, setViewType] = useState<'month' | 'year'>('month');
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, profile } = useAuthStore();
+  const [updatingHelper, setUpdatingHelper] = useState(false);
+  const { user, profile, setProfile } = useAuthStore();
 
   useEffect(() => {
     async function fetchStats() {
       if (!user) return;
+      setLoading(true);
       try {
+        const now = new Date();
+        const startDate = viewType === 'month' 
+          ? new Date(now.getFullYear(), now.getMonth(), 1)
+          : new Date(now.getFullYear(), 0, 1);
+
         const q = query(
           collection(db, 'routes'),
           where('driverId', '==', user.uid),
           where('status', '==', 'completed'),
-          orderBy('endTime', 'desc'),
-          limit(10)
+          where('endTime', '>=', startDate),
+          orderBy('endTime', 'desc')
         );
         const snapshot = await getDocs(q);
         const routeData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -32,7 +41,23 @@ export default function DriverStats() {
       }
     }
     fetchStats();
-  }, [user]);
+  }, [user, viewType]);
+
+  const handleToggleFixedHelper = async () => {
+    if (!user || !profile) return;
+    setUpdatingHelper(true);
+    try {
+      const newFixedHelper = !profile.fixedHelper;
+      await updateDoc(doc(db, 'users', user.uid), {
+        fixedHelper: newFixedHelper
+      });
+      setProfile({ ...profile, fixedHelper: newFixedHelper });
+    } catch (err) {
+      console.error("Error updating fixed helper:", err);
+    } finally {
+      setUpdatingHelper(false);
+    }
+  };
 
   const getMs = (val: any) => {
     if (!val) return 0;
@@ -49,13 +74,21 @@ export default function DriverStats() {
       const endMs = getMs(curr.endTime);
       const hours = (startMs && endMs) ? (endMs - startMs) / (1000 * 60 * 60) : 0;
       
+      // Extra hours threshold: user.markedHours or default 9
+      const threshold = profile?.markedHours || 9;
+      const extraHours = Math.max(0, hours - threshold);
+      
       const km = (Number(curr.endKm) || 0) - (Number(curr.startKm) || 0);
-      const cost = Number(curr.totalCost) || (hours * (profile?.hourlyRate || 15));
+      const kmRate = profile?.kmRate || 0;
+      const extraRate = profile?.extraHourRate || 0;
+      
+      // Total cost calculation: (KM * kmRate) + (ExtraHours * extraRate)
+      const cost = Number(curr.totalCost) || ((km * kmRate) + (extraHours * extraRate));
 
       return {
         km: acc.km + (km > 0 ? km : 0),
         deliveries: acc.deliveries + (Number(curr.totalDeliveries) || 0),
-        hours: acc.hours + (hours > 0 ? hours : 0),
+        hours: acc.hours + extraHours,
         earnings: acc.earnings + cost
       };
     }, { km: 0, deliveries: 0, hours: 0, earnings: 0 });
@@ -68,11 +101,39 @@ export default function DriverStats() {
     <div className="max-w-md mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Resumen de Actividad</h2>
-        <div className="flex gap-2">
-          <div className="glass px-3 py-1 rounded-full text-xs text-green-400 font-medium">
-            {profile?.hourlyRate || 0} €/h
-          </div>
-          <div className="glass px-3 py-1 rounded-full text-xs text-blue-400 font-medium">Este Mes</div>
+        <div className="flex bg-slate-800/50 p-1 rounded-2xl border border-white/5">
+          <button 
+            onClick={() => setViewType('month')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              viewType === 'month' 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                : 'text-white/40 hover:text-white/60'
+            }`}
+          >
+            MENSUAL
+          </button>
+          <button 
+            onClick={() => setViewType('year')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              viewType === 'year' 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                : 'text-white/40 hover:text-white/60'
+            }`}
+          >
+            ANUAL
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-2 mb-2">
+        <div className="glass px-3 py-1 rounded-full text-[10px] text-green-400 font-bold border border-green-500/20">
+          {profile?.kmRate || 0} €/km
+        </div>
+        <div className="glass px-3 py-1 rounded-full text-[10px] text-purple-400 font-bold border border-purple-500/20">
+          EXTRA: {profile?.extraHourRate || 0} €/h
+        </div>
+        <div className="glass px-3 py-1 rounded-full text-[10px] text-amber-400 font-bold border border-amber-500/20">
+          UMBRAL: {profile?.markedHours || 9}h
         </div>
       </div>
 
@@ -96,15 +157,15 @@ export default function DriverStats() {
           <div className="w-10 h-10 bg-emerald-600/20 rounded-xl flex items-center justify-center mb-3">
             <Clock className="text-emerald-500 w-6 h-6" />
           </div>
-          <p className="text-sm text-gray-400">Horas</p>
+          <p className="text-sm text-gray-400">Horas Extra</p>
           <h3 className="text-xl font-bold text-emerald-400">{totals.hours.toFixed(1)} <span className="text-xs font-normal text-gray-500">h</span></h3>
         </div>
-        <div className="glass p-4 rounded-3xl">
+        <div className="glass p-4 rounded-3xl group hover:bg-slate-800/40 transition-all border-l-4 border-l-purple-500">
           <div className="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center mb-3">
             <Euro className="text-purple-500 w-6 h-6" />
           </div>
           <p className="text-sm text-gray-400">Pago Est.</p>
-          <h3 className="text-xl font-bold text-purple-400">{earnings} €</h3>
+          <h3 className="text-xl font-bold gradient-text">{earnings} €</h3>
         </div>
       </div>
 
@@ -145,6 +206,23 @@ export default function DriverStats() {
               No hay rutas registradas recientemente.
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Settings / Fixed Helper */}
+      <div className="glass p-4 rounded-3xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-red-400">¿Ayudante fijo?</h3>
+            <p className="text-xs text-gray-500">Bloquea la opción al inicio de jornada</p>
+          </div>
+          <button
+            onClick={handleToggleFixedHelper}
+            disabled={updatingHelper}
+            className={`w-12 h-6 rounded-full p-1 transition-all ${profile?.fixedHelper ? 'bg-red-500' : 'bg-gray-700'}`}
+          >
+            <div className={`w-4 h-4 bg-white rounded-full transition-all ${profile?.fixedHelper ? 'translate-x-6' : ''}`} />
+          </button>
         </div>
       </div>
     </div>
