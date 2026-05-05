@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Truck, Clock, MapPin, ChevronRight, Loader2, Navigation, Search, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle2, Users } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import RouteInspector from '../../components/manager/RouteInspector';
 
 const MapView = () => {
+  const { user, profile } = useAuthStore();
   const [routes, setRoutes] = useState<any[]>([]);
   const [users, setUsers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -19,9 +21,17 @@ const MapView = () => {
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
 
   useEffect(() => {
+    if (!user || !profile) return;
+
     // Fetch users for name mapping
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, 'users'));
+      let qUsers;
+      if (profile.role === 'company') {
+        qUsers = query(collection(db, 'users'), where('companyId', '==', user.uid));
+      } else {
+        qUsers = query(collection(db, 'users'));
+      }
+      const snapshot = await getDocs(qUsers);
       const userMap: Record<string, string> = {};
       snapshot.docs.forEach(doc => {
         const data = doc.data();
@@ -32,18 +42,28 @@ const MapView = () => {
     fetchUsers();
 
     // Fetch routes
-    const q = query(
-      collection(db, 'routes'), 
-      orderBy('startTime', 'desc'), 
-      limit(100)
-    );
+    let qRoutes;
+    if (profile.role === 'company') {
+      qRoutes = query(
+        collection(db, 'routes'), 
+        where('companyId', '==', user.uid),
+        orderBy('startTime', 'desc'), 
+        limit(100)
+      );
+    } else {
+      qRoutes = query(
+        collection(db, 'routes'), 
+        orderBy('startTime', 'desc'), 
+        limit(100)
+      );
+    }
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(qRoutes, (snapshot) => {
       setRoutes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user, profile]);
 
   const getMs = (val: any) => {
     if (!val) return 0;

@@ -90,7 +90,8 @@ export default function StartRoute() {
 
       const routeData = {
         driverId: user.uid,
-        driverName: user.name || user.displayName || 'Conductor',
+        driverName: profile?.firstName ? `${profile.firstName} ${profile.lastName}` : (user.name || user.displayName || 'Conductor'),
+        companyId: profile?.companyId || null,
         startTime: serverTimestamp(),
         startKm: Number(kmStart),
         startLocation: location,
@@ -101,7 +102,13 @@ export default function StartRoute() {
       };
 
       const docRef = await addDoc(collection(db, 'routes'), routeData);
-      setActiveRoute({ id: docRef.id, ...routeData });
+      
+      // Use a local Date for immediate UI feedback while Firestore processes serverTimestamp
+      setActiveRoute({ 
+        id: docRef.id, 
+        ...routeData,
+        startTime: new Date() 
+      });
       navigate('/driver/end');
     } catch (err) {
       console.error(err);

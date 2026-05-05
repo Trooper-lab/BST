@@ -1,21 +1,29 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Clock, Users } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const CalendarView = () => {
+  const { user, profile } = useAuthStore();
   const [routes, setRoutes] = useState<any[]>([]);
   const now = new Date();
   const days = Array.from({ length: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() }, (_, i) => i + 1);
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   useEffect(() => {
-    const q = query(collection(db, 'routes'), orderBy('startTime', 'desc'));
+    if (!user || !profile) return;
+    let q;
+    if (profile.role === 'company') {
+      q = query(collection(db, 'routes'), where('companyId', '==', user.uid), orderBy('startTime', 'desc'));
+    } else {
+      q = query(collection(db, 'routes'), orderBy('startTime', 'desc'));
+    }
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRoutes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
-  }, []);
+  }, [user, profile]);
 
   const getRoutesForDay = (day: number) => {
     return routes.filter(r => {

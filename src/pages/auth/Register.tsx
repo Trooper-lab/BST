@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Lock, Loader2, ChevronLeft, Building2 } from 'lucide-react';
 
 type Role = 'driver' | 'autonomo' | 'employee';
@@ -17,8 +17,27 @@ export default function Register() {
   const [dni, setDni] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [companyName, setCompanyName] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const companyId = searchParams.get('companyId');
+
+  React.useEffect(() => {
+    if (companyId) {
+      // Fetch company name to display reassuring message
+      getDoc(doc(db, 'users', companyId)).then(docSnap => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.role === 'company') {
+            setCompanyName(`${data.firstName} ${data.lastName}`.trim());
+          }
+        }
+      });
+      // Lock role to driver if company invite
+      if (role === 'employee') setRole('driver');
+    }
+  }, [companyId]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +61,8 @@ export default function Register() {
         role,
         status: 'pending',
         createdAt: new Date().toISOString(),
-        ...(role !== 'employee' ? { dni } : {})
+        ...(role !== 'employee' ? { dni } : {}),
+        ...(companyId ? { companyId } : {})
       };
 
       await setDoc(doc(db, 'users', user.uid), profileData);
@@ -72,11 +92,18 @@ export default function Register() {
 
         <div className="flex flex-col items-center mb-8 pt-4">
           <h1 className="text-3xl font-bold gradient-text">Crear Cuenta</h1>
-          <p className="text-gray-400 mt-2">Únete a la red logística de BTS</p>
+          {companyName ? (
+            <div className="mt-4 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-400" />
+              <p className="text-blue-400 text-sm font-medium">Registro de Conductor para <strong className="text-white">{companyName}</strong></p>
+            </div>
+          ) : (
+            <p className="text-gray-400 mt-2">Únete a la red logística de BTS</p>
+          )}
         </div>
 
         <div className="flex bg-slate-800/50 p-1 rounded-2xl mb-8">
-          {(['driver', 'autonomo', 'employee'] as Role[]).map((r) => (
+          {(companyId ? (['driver', 'autonomo'] as Role[]) : (['driver', 'autonomo', 'employee'] as Role[])).map((r) => (
             <button
               key={r}
               onClick={() => setRole(r)}

@@ -27,13 +27,16 @@ export default function ManagerLayout() {
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Comand Center', path: '/manager/dashboard' },
-    { icon: Users, label: 'Conductores', path: '/manager/drivers' },
-    { icon: MapIcon, label: 'Localizaciones', path: '/manager/map' },
+    { icon: LayoutDashboard, label: 'Command Center', path: '/manager/dashboard' },
+    { icon: Users, label: profile?.role === 'company' ? 'Mis Conductores' : 'Usuarios y Empresas', path: '/manager/drivers' },
+    { icon: MapIcon, label: 'Rutas Activas', path: '/manager/map' },
     { icon: Calendar, label: 'Calendario', path: '/manager/calendar' },
-    { icon: FileSpreadsheet, label: 'Excel BTS', path: '/manager/excel' },
-    { icon: MapPin, label: 'Centros Logísticos', path: '/manager/locations' },
+    { icon: FileSpreadsheet, label: 'Reportes Excel', path: '/manager/excel' },
   ];
+
+  if (profile?.role !== 'company') {
+    menuItems.push({ icon: MapPin, label: 'Centros Logísticos', path: '/manager/locations' });
+  }
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white flex">
@@ -106,8 +109,13 @@ export default function ManagerLayout() {
             </button>
             <div className="flex items-center gap-3 pl-6 border-l border-gray-800">
               <div className="text-right">
-                <p className="text-sm font-bold">{profile?.firstName || 'Admin'}</p>
-                <p className="text-[10px] text-gray-500">{profile?.role === 'admin' ? 'Gerente General' : 'Operaciones'}</p>
+                <p className="text-sm font-bold">{profile?.firstName || 'User'}</p>
+                <p className="text-[10px] text-gray-500">
+                  {profile?.role === 'superadmin' ? 'Super Admin' : 
+                   profile?.role === 'admin' ? 'Gerente General' : 
+                   profile?.role === 'company' ? 'Empresa' : 
+                   'Operaciones'}
+                </p>
               </div>
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl shadow-lg flex items-center justify-center font-bold">
                 {profile?.firstName?.charAt(0) || 'A'}

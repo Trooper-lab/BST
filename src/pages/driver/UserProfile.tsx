@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 const VEHICLE_TYPES = [
-  { value: 'van_small',    label: 'Furgoneta <3.5t' },
-  { value: 'van_large',    label: 'Furgoneta 3.5t' },
-  { value: 'truck_medium', label: 'Camión 7.5t' },
-  { value: 'truck_large',  label: 'Camión >7.5t' },
+  { value: 'vehic_gas',     label: 'VEHÍC. GAS' },
+  { value: 'veh_gas_mixto', label: 'VEH.GAS-MIXTO' },
+  { value: 'furgo_gas',     label: 'FURGO GAS' },
+  { value: 'veh_faltantes', label: 'VEH.FALTANTES' },
 ];
 
 export default function UserProfile() {

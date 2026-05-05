@@ -9,12 +9,13 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import CompanyOverview from './CompanyOverview';
 
 const VEHICLE_TYPES = [
-  { value: 'van_small',    label: 'Furgoneta <3.5t',  co2: 0.15 },
-  { value: 'van_large',    label: 'Furgoneta 3.5t',   co2: 0.22 },
-  { value: 'truck_medium', label: 'Camión 7.5t',       co2: 0.35 },
-  { value: 'truck_large',  label: 'Camión >7.5t',      co2: 0.55 },
+  { value: 'vehic_gas',     label: 'VEHÍC. GAS',    co2: 0.18 },
+  { value: 'veh_gas_mixto', label: 'VEH.GAS-MIXTO', co2: 0.22 },
+  { value: 'furgo_gas',     label: 'FURGO GAS',     co2: 0.12 },
+  { value: 'veh_faltantes', label: 'VEH.FALTANTES', co2: 0.00 },
 ];
 
 const co2Factor = (vehicleType: string) =>
@@ -159,6 +160,10 @@ export default function DriverProfile() {
   const stats = calculateStats();
 
   const inputCls = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500/40 outline-none";
+
+  if (driver?.role === 'company') {
+    return <CompanyOverview company={driver} onBack={() => navigate('/manager/drivers')} />;
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
