@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -152,6 +153,9 @@ export default function LocationDetail() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <Helmet>
+        <title>BTS Logistics Pro - Detalle del Centro</title>
+      </Helmet>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

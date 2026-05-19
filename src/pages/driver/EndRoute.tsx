@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, MapPin, CheckCircle2, Loader2, Square, CheckCheck } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+
 import { db, storage } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -167,6 +169,10 @@ export default function EndRoute() {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - Finalizar Ruta</title>
+      </Helmet>
+
       <div className="glass p-6 rounded-3xl">
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-red-400">
           <Square className="w-5 h-5 fill-red-400" />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import RouteInspector from '../../components/manager/RouteInspector';
@@ -119,6 +120,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <Helmet>
+        <title>BTS Logistics Pro - Dashboard de Gestión</title>
+      </Helmet>
       <div>
         <h2 className="text-2xl font-bold mb-1">Panel de Control</h2>
         <p className="text-gray-500 text-sm">Resumen operativo en tiempo real</p>

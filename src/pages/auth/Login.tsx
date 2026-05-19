@@ -4,6 +4,8 @@ import { auth } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Truck, Lock, Mail, Loader2 } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -41,6 +43,10 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#0f172a] relative overflow-hidden">
+      <Helmet>
+        <title>BTS Logistics Pro - Iniciar Sesión</title>
+      </Helmet>
+
       {/* Decorative background blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[120px]" />

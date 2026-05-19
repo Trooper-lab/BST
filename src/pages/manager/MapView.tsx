@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Truck, Clock, MapPin, ChevronRight, Loader2, Navigation, Search, ArrowUpDown, ArrowUp, ArrowDown, CheckCircle2, Users } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -207,6 +208,9 @@ const MapView = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-10">
+      <Helmet>
+        <title>BTS Logistics Pro - Mapa de Flota</title>
+      </Helmet>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

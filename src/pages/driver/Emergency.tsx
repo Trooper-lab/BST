@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Send, Loader2, Phone } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -57,6 +58,10 @@ export default function Emergency() {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - EMERGENCIA</title>
+      </Helmet>
+
       <div className="glass p-6 rounded-3xl border-red-500/30">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-4 shadow-xl shadow-red-600/40 animate-pulse">

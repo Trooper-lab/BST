@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -99,6 +100,10 @@ export default function DriverStats() {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - Estadísticas</title>
+      </Helmet>
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Resumen de Actividad</h2>
         <div className="flex bg-slate-800/50 p-1 rounded-2xl border border-white/5">

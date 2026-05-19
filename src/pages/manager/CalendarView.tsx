@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { ChevronLeft, ChevronRight, Plus, Clock, Users } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -27,6 +28,9 @@ const CalendarView = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - Calendario de Operaciones</title>
+      </Helmet>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Operations Calendar</h1>

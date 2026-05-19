@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
@@ -162,6 +163,9 @@ export default function DriverProfile() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - Perfil del Conductor</title>
+      </Helmet>
       {/* Header */}
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/manager/drivers')} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors">

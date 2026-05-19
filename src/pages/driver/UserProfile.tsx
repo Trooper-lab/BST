@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -74,6 +75,10 @@ export default function UserProfile() {
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-8">
+      <Helmet>
+        <title>BTS Logistics Pro - Mi Perfil</title>
+      </Helmet>
+
       <div className="flex items-center gap-4 mb-2">
         <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20">
           <User className="w-6 h-6 text-white" />

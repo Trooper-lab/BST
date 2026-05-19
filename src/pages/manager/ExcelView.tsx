@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Download, Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../lib/firebase';
@@ -139,6 +140,9 @@ const ExcelView = () => {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+      <Helmet>
+        <title>BTS Logistics Pro - Exportar Datos</title>
+      </Helmet>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
