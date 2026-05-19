@@ -3,10 +3,11 @@ import { Helmet } from 'react-helmet-async';
 import { Download, Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import RouteInspector from '../../components/manager/RouteInspector';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const getMs = (val: any): number => {
   if (!val) return 0;
@@ -34,6 +35,7 @@ const fmtDuration = (startVal: any, endVal: any) => {
 type SortKey = 'startTime' | 'endTime' | 'driver' | 'km' | 'cost' | 'deliveries';
 
 const ExcelView = () => {
+  const { user, profile } = useAuthStore();
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,13 +43,19 @@ const ExcelView = () => {
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'routes'), orderBy('startTime', 'desc'));
+    if (!user || !profile) return;
+    let q;
+    if (profile.role === 'company') {
+      q = query(collection(db, 'routes'), where('companyId', '==', user.uid), orderBy('startTime', 'desc'));
+    } else {
+      q = query(collection(db, 'routes'), orderBy('startTime', 'desc'));
+    }
     const unsub = onSnapshot(q, (snap) => {
       setRoutes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [user, profile]);
 
   const filtered = useMemo(() => {
     let rows = routes;

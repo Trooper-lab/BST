@@ -18,7 +18,7 @@ export default function Login() {
 
   React.useEffect(() => {
     if (!isLoading && user && profile) {
-      if (profile.role === 'admin' || profile.role === 'employee') {
+      if (['superadmin', 'admin', 'company', 'employee'].includes(profile.role)) {
         navigate('/manager/dashboard');
       } else {
         navigate('/driver');

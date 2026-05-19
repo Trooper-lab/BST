@@ -8,6 +8,10 @@ import { doc, getDoc, updateDoc, serverTimestamp, getDocs, collection, query, or
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuthStore } from '../../store/useAuthStore';
 import { findClosestLocation } from '../../lib/geoUtils';
+import { Clock } from 'lucide-react';
+
+// RouteTimer component removed as per user request to only show in header
+
 
 export default function EndRoute() {
   const [kmEnd, setKmEnd] = useState('');
@@ -16,9 +20,21 @@ export default function EndRoute() {
   const [centers, setCenters] = useState<any[]>([]);
   const [image, setImage] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lunchLimit, setLunchLimit] = useState(60);
   
   const navigate = useNavigate();
   const { activeRoute, setActiveRoute } = useAuthStore();
+
+  // Load lunch state from activeRoute if available
+  useEffect(() => {
+    if (activeRoute?.lunchStartTime && activeRoute?.lunchLimit) {
+      setLunchLimit(activeRoute.lunchLimit);
+    } else {
+      // If no break is active, default to the remaining pool time
+      const used = activeRoute?.lunchMinutesUsed || 0;
+      setLunchLimit(Math.max(0, 60 - used));
+    }
+  }, [activeRoute?.lunchStartTime, activeRoute?.lunchLimit, activeRoute?.lunchMinutesUsed]);
 
   useEffect(() => {
     // If no active route, send back to start
@@ -86,6 +102,58 @@ export default function EndRoute() {
     }
   }, [location, centers, selectedCenter]);
 
+  const handleStartBreak = async () => {
+    if (!activeRoute?.id) return;
+    const used = activeRoute.lunchMinutesUsed || 0;
+    const remaining = Math.max(0, 60 - used);
+    
+    if (remaining <= 0) {
+      alert('Ya has usado tus 60 minutos de descanso.');
+      return;
+    }
+
+    const duration = Math.min(lunchLimit, remaining);
+
+    try {
+      await updateDoc(doc(db, 'routes', activeRoute.id), {
+        lunchStartTime: serverTimestamp(),
+        lunchLimit: duration
+      });
+      setActiveRoute({ 
+        ...activeRoute, 
+        lunchStartTime: new Date(), 
+        lunchLimit: duration 
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEndBreak = async () => {
+    if (!activeRoute?.id || !activeRoute?.lunchStartTime) return;
+    
+    const used = activeRoute.lunchMinutesUsed || 0;
+    const currentLimit = activeRoute.lunchLimit || 60;
+    const newUsed = used + currentLimit;
+
+    try {
+      await updateDoc(doc(db, 'routes', activeRoute.id), {
+        lunchStartTime: null,
+        lunchLimit: 0,
+        lunchMinutesUsed: newUsed
+      });
+      setActiveRoute({ 
+        ...activeRoute, 
+        lunchStartTime: null, 
+        lunchLimit: 0,
+        lunchMinutesUsed: newUsed
+      });
+      setLunchLimit(Math.max(0, 60 - newUsed));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleEnd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!kmEnd || !totalDeliveries || !activeRoute || !selectedCenter) return;
@@ -107,7 +175,24 @@ export default function EndRoute() {
       let autoHours = 0;
       if (activeRoute.startTime) {
         const start = activeRoute.startTime.toDate ? activeRoute.startTime.toDate() : new Date(activeRoute.startTime);
-        autoHours = (new Date().getTime() - start.getTime()) / 3600000;
+        if (!isNaN(start.getTime())) {
+          // Total elapsed time
+          const now = new Date();
+          const totalMs = now.getTime() - start.getTime();
+          
+          // Calculate break deduction
+          let lunchMs = (activeRoute.lunchMinutesUsed || 0) * 60000;
+          if (activeRoute.lunchStartTime) {
+            const breakStart = activeRoute.lunchStartTime.toDate ? activeRoute.lunchStartTime.toDate() : new Date(activeRoute.lunchStartTime);
+            if (!isNaN(breakStart.getTime())) {
+              const breakElapsed = now.getTime() - breakStart.getTime();
+              const limitMs = (activeRoute.lunchLimit || 60) * 60000;
+              lunchMs += Math.min(breakElapsed, limitMs);
+            }
+          }
+          
+          autoHours = Math.max(0, totalMs - lunchMs) / 3600000;
+        }
       }
 
       const routeRef = doc(db, 'routes', activeRoute.id);
@@ -152,6 +237,8 @@ export default function EndRoute() {
         endPhoto: photoUrl,
         totalDeliveries: Number(totalDeliveries),
         autoHours: parseFloat(autoHours.toFixed(4)),
+        lunchLimit: activeRoute.lunchLimit || lunchLimit,
+        lunchStartTime: activeRoute.lunchStartTime || null,
         totalCost: totalCost,
         status: 'completed'
       });
@@ -178,6 +265,98 @@ export default function EndRoute() {
           <Square className="w-5 h-5 fill-red-400" />
           Finalizar Reparto
         </h2>
+
+        {/* Lunch Break Section */}
+        <div className="mb-8 p-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center">
+                <Clock className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-xs text-orange-400 font-bold uppercase">Descanso / Lunch</p>
+                <p className="text-[10px] text-gray-500">Auto-pausa el tiempo de jornada</p>
+              </div>
+            </div>
+            {(() => {
+              const used = activeRoute?.lunchMinutesUsed || 0;
+              const remaining = Math.max(0, 60 - used);
+
+              if (!activeRoute?.lunchStartTime) {
+                return (
+                  <button
+                    type="button"
+                    disabled={remaining <= 0}
+                    onClick={handleStartBreak}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-bold shadow-lg hover:bg-orange-500 transition-all disabled:opacity-50"
+                  >
+                    INICIAR DESCANSO ({remaining}m disp.)
+                  </button>
+                );
+              }
+
+              const breakStart = activeRoute.lunchStartTime.toDate ? activeRoute.lunchStartTime.toDate() : new Date(activeRoute.lunchStartTime);
+              const breakLimit = activeRoute.lunchLimit || 60;
+              // Break UI is only shown if lunchStartTime is present and NOT expired.
+              // If it's expired, the background process in DriverLayout will clear it,
+              // and the logic above (!activeRoute?.lunchStartTime) will take over.
+              const isExpired = (new Date().getTime() - breakStart.getTime()) >= (breakLimit * 60000);
+              
+              if (isExpired) return null;
+
+              return (
+                <div className="px-4 py-2 bg-slate-800 text-orange-400 rounded-xl text-xs font-bold border border-orange-500/30 flex flex-col items-center leading-tight">
+                  <span>DESCANSO ACTIVO</span>
+                  <span className="text-[9px] opacity-60">Expira en {breakLimit}m</span>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="flex items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                {activeRoute?.lunchStartTime ? 'Pausa Actual' : 'Minutos de Pausa'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={lunchLimit}
+                  onChange={(e) => setLunchLimit(Math.min(60 - (activeRoute?.lunchMinutesUsed || 0), Math.max(0, Number(e.target.value))))}
+                  disabled={!!activeRoute?.lunchStartTime}
+                  className="w-full bg-slate-900/50 border border-gray-700 rounded-xl py-2 px-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-orange-500/50 disabled:opacity-50"
+                  placeholder="60"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">MIN</span>
+              </div>
+            </div>
+            {!activeRoute?.lunchStartTime && (
+              <div className="flex gap-1">
+                {[15, 30, 45, 60].filter(m => m <= (60 - (activeRoute?.lunchMinutesUsed || 0))).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setLunchLimit(m)}
+                    className={`w-10 h-10 rounded-lg border text-[10px] font-bold transition-all ${
+                      lunchLimit === m 
+                        ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' 
+                        : 'bg-slate-800/50 border-gray-700 text-gray-500 hover:border-gray-600'
+                    }`}
+                  >
+                    {m}'
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex-1 text-right">
+              <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Total Usado</p>
+              <p className="text-xl font-black text-white">
+                {activeRoute?.lunchMinutesUsed || 0}
+                <span className="text-xs text-gray-500 ml-1">/ 60 min</span>
+              </p>
+            </div>
+          </div>
+        </div>
 
         <form onSubmit={handleEnd} className="space-y-6">
           <div className="flex gap-4">

@@ -20,7 +20,7 @@ export default function Emergency() {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +39,8 @@ export default function Emergency() {
 
       await addDoc(collection(db, 'emergencies'), {
         driverId: user.uid,
+        driverName: profile?.firstName ? `${profile.firstName} ${profile.lastName}` : (user.name || user.displayName || 'Conductor'),
+        companyId: profile?.companyId || null,
         timestamp: serverTimestamp(),
         reason,
         description,

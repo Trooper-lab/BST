@@ -11,27 +11,36 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && (getUserData().role == 'admin' || request.auth.token.email == 'manager@test.es');
+      let role = getUserData().role;
+      return isSignedIn() && (role == 'admin' || role == 'superadmin' || request.auth.token.email == 'manager@test.es' || request.auth.token.email == 'superadmin@test.es');
+    }
+    
+    function isCompany() {
+      return isSignedIn() && getUserData().role == 'company';
     }
 
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isAdmin() 
+                   || (isSignedIn() && request.auth.uid == userId)
+                   || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
     // Routes collection
     match /routes/{routeId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.driverId == request.auth.uid);
+      allow update, delete: if isAdmin() 
+                            || (isSignedIn() && resource.data.driverId == request.auth.uid)
+                            || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
     // Emergencies collection
     match /emergencies/{emergencyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
     // Locations collection

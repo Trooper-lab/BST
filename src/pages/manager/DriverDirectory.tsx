@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2, ChevronRight } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2, ChevronRight, Link, Check, CheckCircle2 } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/useAuthStore';
 
 type SortKey = 'name' | 'role' | 'status' | 'kmRate' | 'dni';
 
@@ -18,22 +19,68 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Activo', pending: 'Pendiente', inactive: 'Inactivo', rejected: 'Rechazado',
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  driver: 'Empleado',
+  autonomo: 'Autónomo',
+  company: 'Empresa',
+  admin: 'Administrador',
+  superadmin: 'S.Admin',
+};
+
 const DriverDirectory = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuthStore();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyLink = () => {
+    if (!user) return;
+    const inviteLink = `${window.location.origin}/register?companyId=${user.uid}`;
+    navigator.clipboard.writeText(inviteLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleApprove = async (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    try {
+      await updateDoc(doc(db, 'users', userId), { status: 'active' });
+    } catch (err) {
+      console.error('Approval error:', err);
+    }
+  };
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), where('role', 'in', ['driver', 'autonomo']));
+    if (!user || !profile) return;
+
+    let rolesToFetch = ['driver', 'autonomo'];
+    if (profile.role === 'superadmin') {
+      rolesToFetch = ['admin', 'company', 'driver', 'autonomo'];
+    } else if (profile.role === 'admin') {
+      rolesToFetch = ['company', 'driver', 'autonomo'];
+    }
+
+    let q;
+    if (profile.role === 'company') {
+      q = query(collection(db, 'users'), where('role', 'in', rolesToFetch), where('companyId', '==', user.uid));
+    } else {
+      q = query(collection(db, 'users'), where('role', 'in', rolesToFetch));
+    }
+
     const unsub = onSnapshot(q, (snap) => {
-      setDrivers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      if (profile.role !== 'company') {
+        docs = docs.filter(d => !(d.companyId && d.status === 'pending'));
+      }
+      setDrivers(docs);
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [user, profile]);
 
   const filtered = useMemo(() => {
     let rows = drivers;
@@ -99,9 +146,23 @@ const DriverDirectory = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Directorio de Conductores</h1>
-          <p className="text-white/40 text-sm mt-1">{counts.total} conductores · {counts.active} activos · {counts.pending} pendientes</p>
+          <h1 className="text-3xl font-bold text-white">Directorio de Usuarios</h1>
+          <p className="text-white/40 text-sm mt-1">{counts.total} usuarios · {counts.active} activos · {counts.pending} pendientes</p>
         </div>
+        
+        {profile?.role === 'company' && (
+          <button 
+            onClick={handleCopyLink}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              copiedLink 
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' 
+                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
+            }`}
+          >
+            {copiedLink ? <Check className="w-4 h-4" /> : <Link className="w-4 h-4" />}
+            {copiedLink ? 'Enlace Copiado' : 'Copiar Enlace de Invitación'}
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -136,17 +197,17 @@ const DriverDirectory = () => {
         {loading ? (
           <div className="flex items-center justify-center py-24 gap-3 text-white/30">
             <Loader2 className="w-6 h-6 animate-spin" />
-            <span className="text-sm">Sincronizando conductores...</span>
+            <span className="text-sm">Sincronizando usuarios...</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-white/[0.04] border-b border-white/10">
                 <tr>
-                  <Th col="name" label="Conductor" />
+                  <Th col="name" label="Usuario" />
                   <th className="px-4 py-3 text-[10px] font-bold text-white/40 uppercase tracking-widest whitespace-nowrap">Email</th>
-                  <Th col="dni" label="DNI / NIE" />
-                  <Th col="role" label="Tipo" />
+                  <Th col="dni" label="DNI / CIF" />
+                  <Th col="role" label="Rol" />
                    <Th col="kmRate" label="€/km" />
                   <Th col="status" label="Estado" />
                   <th className="px-4 py-3" />
@@ -171,9 +232,11 @@ const DriverDirectory = () => {
                     <td className="px-4 py-3 text-white/60 font-mono text-xs">{driver.dni || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
+                        driver.role === 'admin' || driver.role === 'superadmin' ? 'bg-red-500/10 text-red-400' :
+                        driver.role === 'company' ? 'bg-orange-500/10 text-orange-400' :
                         driver.role === 'autonomo' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'
                       }`}>
-                        {driver.role === 'autonomo' ? 'Autónomo' : 'Empleado'}
+                        {ROLE_LABELS[driver.role] || driver.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-white/70 tabular-nums">
@@ -185,14 +248,25 @@ const DriverDirectory = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/60 transition-colors ml-auto" />
+                      <div className="flex items-center justify-end gap-2">
+                        {driver.status === 'pending' && (
+                          <button
+                            onClick={(e) => handleApprove(e, driver.id)}
+                            className="p-1.5 bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-white rounded-lg transition-colors"
+                            title="Aprobar Usuario"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/60 transition-colors" />
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-16 text-center text-white/20 italic text-sm">
-                      No se encontraron conductores
+                      No se encontraron usuarios
                     </td>
                   </tr>
                 )}

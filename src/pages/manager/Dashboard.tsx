@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { db } from '../../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import RouteInspector from '../../components/manager/RouteInspector';
+import { useAuthStore } from '../../store/useAuthStore';
 import {
   Truck,
   Package,
@@ -31,14 +32,30 @@ export default function Dashboard() {
   const [newEmergencyAlert, setNewEmergencyAlert] = useState<any | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
 
+  const { user, profile } = useAuthStore();
+
   useEffect(() => {
+    if (!user || !profile) return;
+
     try {
+      const isCompany = profile.role === 'company';
+      
       // Real-time listener for emergencies
-      const qEmergencies = query(
-        collection(db, 'emergencies'),
-        where('status', '==', 'active'),
-        orderBy('timestamp', 'desc')
-      );
+      let qEmergencies;
+      if (isCompany) {
+        qEmergencies = query(
+          collection(db, 'emergencies'),
+          where('status', '==', 'active'),
+          where('companyId', '==', user.uid),
+          orderBy('timestamp', 'desc')
+        );
+      } else {
+        qEmergencies = query(
+          collection(db, 'emergencies'),
+          where('status', '==', 'active'),
+          orderBy('timestamp', 'desc')
+        );
+      }
       
       const unsubscribeEmergencies = onSnapshot(qEmergencies, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -50,13 +67,39 @@ export default function Dashboard() {
       }, (err) => console.warn('Emergencies listener failed:', err));
 
       // Fetch pending user approvals
-      const qUsers = query(collection(db, 'users'), where('status', '==', 'pending'));
+      let qUsers;
+      if (isCompany) {
+        qUsers = query(collection(db, 'users'), where('status', '==', 'pending'), where('companyId', '==', user.uid));
+      } else {
+        qUsers = query(collection(db, 'users'), where('status', '==', 'pending'));
+      }
       const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
-        setPendingTasks(snapshot.docs.map(doc => ({ type: 'user_approval', id: doc.id, ...doc.data() })));
+        let tasks = snapshot.docs.map(doc => ({ type: 'user_approval', id: doc.id, ...doc.data() as any }));
+        if (!isCompany) {
+          tasks = tasks.filter(task => !task.companyId);
+        }
+        setPendingTasks(tasks);
       }, (err) => console.warn('Users listener failed:', err));
 
       // Fetch daily routes for stats and active fleet
-      const qRoutes = query(collection(db, 'routes'), orderBy('startTime', 'desc'), limit(50));
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      let qRoutes;
+      if (isCompany) {
+        qRoutes = query(
+          collection(db, 'routes'), 
+          where('companyId', '==', user.uid), 
+          where('startTime', '>=', startOfToday),
+          orderBy('startTime', 'desc')
+        );
+      } else {
+        qRoutes = query(
+          collection(db, 'routes'), 
+          where('startTime', '>=', startOfToday),
+          orderBy('startTime', 'desc')
+        );
+      }
       const unsubscribeRoutes = onSnapshot(qRoutes, (snapshot) => {
         const allRoutes: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
@@ -74,7 +117,7 @@ export default function Dashboard() {
         setStats(totals);
       }, (err) => {
         console.warn('Routes listener failed:', err);
-        setStats({ totalKm: 1420, totalDeliveries: 458, totalCo2: 170.4, totalCost: 2130 });
+        setStats({ totalKm: 0, totalDeliveries: 0, totalCo2: 0, totalCost: 0 });
       });
 
       return () => {
@@ -85,7 +128,7 @@ export default function Dashboard() {
     } catch (e) {
       console.error('Dashboard init error:', e);
     }
-  }, []);
+  }, [user, profile]);
 
   const handleApprove = async (userId: string) => {
     try {
