@@ -129,30 +129,30 @@ export default function EndRoute() {
     }
   };
 
-  const handleEndBreak = async () => {
-    if (!activeRoute?.id || !activeRoute?.lunchStartTime) return;
-    
-    const used = activeRoute.lunchMinutesUsed || 0;
-    const currentLimit = activeRoute.lunchLimit || 60;
-    const newUsed = used + currentLimit;
-
-    try {
-      await updateDoc(doc(db, 'routes', activeRoute.id), {
-        lunchStartTime: null,
-        lunchLimit: 0,
-        lunchMinutesUsed: newUsed
-      });
-      setActiveRoute({ 
-        ...activeRoute, 
-        lunchStartTime: null, 
-        lunchLimit: 0,
-        lunchMinutesUsed: newUsed
-      });
-      setLunchLimit(Math.max(0, 60 - newUsed));
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // const handleEndBreak = async () => {
+  //   if (!activeRoute?.id || !activeRoute?.lunchStartTime) return;
+  //   
+  //   const used = activeRoute.lunchMinutesUsed || 0;
+  //   const currentLimit = activeRoute.lunchLimit || 60;
+  //   const newUsed = used + currentLimit;
+  // 
+  //   try {
+  //     await updateDoc(doc(db, 'routes', activeRoute.id), {
+  //       lunchStartTime: null,
+  //       lunchLimit: 0,
+  //       lunchMinutesUsed: newUsed
+  //     });
+  //     setActiveRoute({ 
+  //       ...activeRoute, 
+  //       lunchStartTime: null, 
+  //       lunchLimit: 0,
+  //       lunchMinutesUsed: newUsed
+  //     });
+  //     setLunchLimit(Math.max(0, 60 - newUsed));
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
 
   const handleEnd = async (e: React.FormEvent) => {
     e.preventDefault();
