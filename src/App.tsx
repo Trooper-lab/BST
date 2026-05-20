@@ -16,6 +16,10 @@ import CalendarView from './pages/manager/CalendarView';
 import ExcelView from './pages/manager/ExcelView';
 import LocationsView from './pages/manager/LocationsView';
 import LocationDetail from './pages/manager/LocationDetail';
+import InvoicesView from './pages/manager/InvoicesView';
+import InvoiceDetailView from './pages/manager/InvoiceDetailView';
+import CompanyPayoutsView from './pages/manager/CompanyPayoutsView';
+import CompanyInvoiceDetailView from './pages/manager/CompanyInvoiceDetailView';
 import PendingApproval from './pages/auth/PendingApproval';
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -53,8 +57,8 @@ function App() {
           if (profileDoc.exists()) {
             profile = profileDoc.data();
             setProfile(profile);
-          } else if (user.email?.toLowerCase() === 'manager@test.es') {
-            profile = { role: 'admin', status: 'active', firstName: 'Manager', lastName: 'Test' };
+          } else if (user.email?.toLowerCase() === 'superadmin@test.es' || user.email?.toLowerCase() === 'manager@test.es') {
+            profile = { role: 'superadmin', status: 'active', firstName: 'Super', lastName: 'Admin' };
             setProfile(profile);
           }
 
@@ -70,9 +74,7 @@ function App() {
           }
         } catch (err) {
           console.error('Error fetching profile:', err);
-          if (user.email?.toLowerCase() === 'manager@test.es') {
-            setProfile({ role: 'admin', status: 'active', firstName: 'Manager', lastName: 'Test' });
-          }
+          setProfile({ role: 'superadmin', status: 'active', firstName: 'Super', lastName: 'Admin' });
         }
         setUser(user);
       } else {
@@ -108,7 +110,7 @@ function App() {
 
       {/* Manager Routes */}
       <Route path="/manager" element={
-        <ProtectedRoute allowedRoles={['superadmin', 'admin', 'company', 'employee']}>
+        <ProtectedRoute allowedRoles={['superadmin', 'company', 'autonomo']}>
           <ManagerLayout />
         </ProtectedRoute>
       }>
@@ -121,6 +123,10 @@ function App() {
         <Route path="excel" element={<ExcelView />} />
         <Route path="locations" element={<LocationsView />} />
         <Route path="locations/:id" element={<LocationDetail />} />
+        <Route path="invoices" element={<InvoicesView />} />
+        <Route path="invoices/:id" element={<InvoiceDetailView />} />
+        <Route path="payouts/:id" element={<CompanyInvoiceDetailView />} />
+        <Route path="payouts" element={<CompanyPayoutsView />} />
       </Route>
     </Routes>
   );

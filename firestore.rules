@@ -10,9 +10,9 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     
-    function isAdmin() {
+    function isSuperAdmin() {
       let role = getUserData().role;
-      return isSignedIn() && (role == 'admin' || role == 'superadmin' || request.auth.token.email == 'manager@test.es' || request.auth.token.email == 'superadmin@test.es');
+      return isSignedIn() && (role == 'superadmin' || request.auth.token.email == 'manager@test.es' || request.auth.token.email == 'superadmin@test.es');
     }
     
     function isCompany() {
@@ -22,7 +22,7 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() 
+      allow write: if isSuperAdmin() 
                    || (isSignedIn() && request.auth.uid == userId)
                    || (isCompany() && resource.data.companyId == request.auth.uid);
     }
@@ -31,7 +31,7 @@ service cloud.firestore {
     match /routes/{routeId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
-      allow update, delete: if isAdmin() 
+      allow update, delete: if isSuperAdmin() 
                             || (isSignedIn() && resource.data.driverId == request.auth.uid)
                             || (isCompany() && resource.data.companyId == request.auth.uid);
     }
@@ -40,13 +40,25 @@ service cloud.firestore {
     match /emergencies/{emergencyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+      allow update: if isSuperAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
     // Locations collection
     match /locations/{locationId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
+    }
+    
+    // Invoices collection
+    match /invoices/{invoiceId} {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // Company Invoices collection
+    match /company_invoices/{invoiceId} {
+      allow read: if isSuperAdmin() || (isSignedIn() && resource.data.companyId == request.auth.uid);
+      allow write: if isSuperAdmin();
     }
   }
 }

@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Lock, Loader2, ChevronLeft, Building2 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 
-type Role = 'driver' | 'autonomo' | 'employee';
+type Role = 'driver' | 'autonomo' | 'company';
 
 export default function Register() {
   const [role, setRole] = useState<Role>('driver');
@@ -36,7 +36,7 @@ export default function Register() {
         }
       });
       // Lock role to driver if company invite
-      if (role === 'employee') setRole('driver');
+      if (role === 'company') setRole('driver');
     }
   }, [companyId]);
 
@@ -62,7 +62,7 @@ export default function Register() {
         role,
         status: 'pending',
         createdAt: new Date().toISOString(),
-        ...(role !== 'employee' ? { dni } : {}),
+        dni,
         ...(companyId ? { companyId } : {})
       };
 
@@ -108,7 +108,7 @@ export default function Register() {
         </div>
 
         <div className="flex bg-slate-800/50 p-1 rounded-2xl mb-8">
-          {(companyId ? (['driver', 'autonomo'] as Role[]) : (['driver', 'autonomo', 'employee'] as Role[])).map((r) => (
+          {(companyId ? (['driver', 'autonomo'] as Role[]) : (['driver', 'autonomo', 'company'] as Role[])).map((r) => (
             <button
               key={r}
               onClick={() => setRole(r)}
@@ -116,7 +116,7 @@ export default function Register() {
                 role === r ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
               }`}
             >
-              {r === 'driver' ? 'Conductor' : r === 'autonomo' ? 'Autónomo' : 'Empleado'}
+              {r === 'driver' ? 'Conductor' : r === 'autonomo' ? 'Autónomo' : 'Empresa'}
             </button>
           ))}
         </div>
@@ -165,7 +165,6 @@ export default function Register() {
             </div>
           </div>
 
-          {role !== 'employee' && (
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-300 mb-2">DNI / NIE / CIF</label>
               <div className="relative">
@@ -179,7 +178,6 @@ export default function Register() {
                 />
               </div>
             </div>
-          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Contraseña</label>

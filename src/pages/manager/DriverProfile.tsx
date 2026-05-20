@@ -43,6 +43,7 @@ export default function DriverProfile() {
     vehicleType: '',
     vehiclePlate: '',
     markedHours: 9,
+    monthlyBaseCost: 0,
   });
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function DriverProfile() {
             vehicleType: data.vehicleType || '',
             vehiclePlate: data.vehiclePlate || '',
             markedHours: data.markedHours || 9,
+            monthlyBaseCost: data.monthlyBaseCost || 0,
           });
         }
 
@@ -94,8 +96,9 @@ export default function DriverProfile() {
         kmRate: Number(formData.kmRate),
         extraHourRate: Number(formData.extraHourRate),
         markedHours: Number(formData.markedHours),
+        monthlyBaseCost: Number(formData.monthlyBaseCost),
       });
-      setDriver({ ...driver, ...formData, kmRate: Number(formData.kmRate), extraHourRate: Number(formData.extraHourRate) });
+      setDriver({ ...driver, ...formData, kmRate: Number(formData.kmRate), extraHourRate: Number(formData.extraHourRate), monthlyBaseCost: Number(formData.monthlyBaseCost) });
       setIsEditing(false);
     } catch (err) {
       console.error('Error updating driver:', err);
@@ -136,19 +139,11 @@ export default function DriverProfile() {
     const totalKm = monthRoutes.reduce((a, r) => a + ((Number(r.endKm) || 0) - (Number(r.startKm) || 0)), 0);
     const totalDeliveries = monthRoutes.reduce((a, r) => a + (Number(r.totalDeliveries) || 0), 0);
     
-    const monthlyPay = monthRoutes.reduce((a, r) => {
-      if (Number(r.totalCost)) return a + Number(r.totalCost);
-      const h = routeHours(r);
-      const km = (Number(r.endKm) || 0) - (Number(r.startKm) || 0);
-      const threshold = driver?.markedHours || 9;
-      const extra = Math.max(0, h - threshold);
-      const cost = (km * (driver?.kmRate || 0)) + (extra * (driver?.extraHourRate || 0));
-      return a + cost;
-    }, 0);
+    const totalMonthlyCost = (driver?.monthlyBaseCost || 0) + (totalExtraHours * (driver?.extraHourRate || 0));
 
     const co2 = totalKm * co2Factor(driver?.vehicleType || '');
 
-    return { totalHours, totalExtraHours, totalKm, totalDeliveries, monthlyPay, co2 };
+    return { totalHours, totalExtraHours, totalKm, totalDeliveries, monthlyPay: totalMonthlyCost, co2 };
   };
 
   if (loading) return (
@@ -273,9 +268,9 @@ export default function DriverProfile() {
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Tarifa KM (€/km)</label>
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Salario Base Mensual (€)</label>
                     <div className="relative">
-                      <input type="number" step="0.01" className={inputCls} value={formData.kmRate} onChange={e => setFormData({ ...formData, kmRate: Number(e.target.value) })} />
+                      <input type="number" step="0.01" className={inputCls} value={formData.monthlyBaseCost} onChange={e => setFormData({ ...formData, monthlyBaseCost: Number(e.target.value) })} />
                       <Euro className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
                     </div>
                   </div>
@@ -287,9 +282,18 @@ export default function DriverProfile() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 space-y-1.5">
-                  <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Jornada Marcada (Horas base)</label>
-                  <input type="number" step="0.5" className={inputCls} value={formData.markedHours} onChange={e => setFormData({ ...formData, markedHours: Number(e.target.value) })} />
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Tarifa KM (€/km) (Opcional)</label>
+                    <div className="relative">
+                      <input type="number" step="0.01" className={inputCls} value={formData.kmRate} onChange={e => setFormData({ ...formData, kmRate: Number(e.target.value) })} />
+                      <Euro className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/40 uppercase ml-1">Jornada Marcada (Horas base)</label>
+                    <input type="number" step="0.5" className={inputCls} value={formData.markedHours} onChange={e => setFormData({ ...formData, markedHours: Number(e.target.value) })} />
+                  </div>
                 </div>
               </div>
 
@@ -329,8 +333,8 @@ export default function DriverProfile() {
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-4 bg-white/5 rounded-2xl">
-                  <p className="text-[10px] text-white/40 uppercase font-bold mb-1">KM</p>
-                  <p className="text-xl font-bold text-white">{driver?.kmRate || 0}<span className="text-xs text-white/40 font-normal ml-1">€/km</span></p>
+                  <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Base Mensual</p>
+                  <p className="text-xl font-bold text-white">{driver?.monthlyBaseCost || 0}<span className="text-xs text-white/40 font-normal ml-1">€/mes</span></p>
                 </div>
                 <div className="p-4 bg-white/5 rounded-2xl">
                   <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Hora Extra</p>

@@ -9,7 +9,9 @@ import {
   LogOut, 
   Search,
   Settings,
-  MapPin
+  MapPin,
+  Euro,
+  FileText
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -34,8 +36,13 @@ export default function ManagerLayout() {
     { icon: FileSpreadsheet, label: 'Reportes Excel', path: '/manager/excel' },
   ];
 
-  if (profile?.role !== 'company') {
+  if (profile?.role === 'superadmin') {
     menuItems.push({ icon: MapPin, label: 'Centros Logísticos', path: '/manager/locations' });
+    menuItems.push({ icon: FileText, label: 'Facturación', path: '/manager/invoices' });
+  }
+
+  if (profile?.role === 'company' || profile?.role === 'autonomo') {
+    menuItems.push({ icon: Euro, label: 'Mis Ganancias', path: '/manager/payouts' });
   }
 
   return (
@@ -112,7 +119,6 @@ export default function ManagerLayout() {
                 <p className="text-sm font-bold">{profile?.firstName || 'User'}</p>
                 <p className="text-[10px] text-gray-500">
                   {profile?.role === 'superadmin' ? 'Super Admin' : 
-                   profile?.role === 'admin' ? 'Gerente General' : 
                    profile?.role === 'company' ? 'Empresa' : 
                    'Operaciones'}
                 </p>
