@@ -8,12 +8,7 @@ import {
   Check, Loader2, AlertCircle, Save
 } from 'lucide-react';
 
-const VEHICLE_TYPES = [
-  { value: 'vehic_gas',     label: 'VEHÍC. GAS' },
-  { value: 'veh_gas_mixto', label: 'VEH.GAS-MIXTO' },
-  { value: 'furgo_gas',     label: 'FURGO GAS' },
-  { value: 'veh_faltantes', label: 'VEH.FALTANTES' },
-];
+import { VEHICLE_TYPES } from '../../lib/vehicleTypes';
 
 export default function UserProfile() {
   const { user, profile, setProfile } = useAuthStore();

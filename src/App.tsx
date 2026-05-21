@@ -20,6 +20,7 @@ import InvoicesView from './pages/manager/InvoicesView';
 import InvoiceDetailView from './pages/manager/InvoiceDetailView';
 import CompanyPayoutsView from './pages/manager/CompanyPayoutsView';
 import CompanyInvoiceDetailView from './pages/manager/CompanyInvoiceDetailView';
+import Settings from './pages/manager/Settings';
 import PendingApproval from './pages/auth/PendingApproval';
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -27,45 +28,73 @@ import { auth, db } from './lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuthStore } from './store/useAuthStore';
 
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
+const MANAGER_ROLES = ['superadmin', 'company', 'autonomo'];
+const DRIVER_ROLES  = ['driver', 'autonomo'];
+
+const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
   const { user, profile, isLoading } = useAuthStore();
-  
-  if (isLoading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!user) return <Navigate to="/login" />;
-  
-  // Handle account status
-  if (profile?.status === 'pending') {
-    return <Navigate to="/pending" />;
+  if (profile?.status === 'pending') return <Navigate to="/pending" />;
+  if (!profile) return <Navigate to="/login" />;
+
+  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+    return <Navigate to={DRIVER_ROLES.includes(profile.role) ? '/driver' : '/manager/dashboard'} />;
   }
-  
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return <Navigate to={profile.role === 'driver' || profile.role === 'autonomo' ? '/driver' : '/manager/dashboard'} />;
-  }
-  
+
   return <>{children}</>;
+};
+
+// Redirects unauthenticated users away from /pending
+const PendingRoute = () => {
+  const { user, profile, isLoading } = useAuthStore();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" />;
+  if (profile && profile.status !== 'pending') {
+    return <Navigate to={DRIVER_ROLES.includes(profile.role) && !MANAGER_ROLES.includes(profile.role) ? '/driver' : '/manager/dashboard'} />;
+  }
+  return <PendingApproval />;
 };
 
 function App() {
   const { setUser, setProfile, setIsLoading, setActiveRoute } = useAuthStore();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
         try {
-          const profileDoc = await getDoc(doc(db, 'users', user.uid));
+          const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           let profile: any = null;
+
           if (profileDoc.exists()) {
             profile = profileDoc.data();
-            setProfile(profile);
-          } else if (user.email?.toLowerCase() === 'superadmin@test.es' || user.email?.toLowerCase() === 'manager@test.es') {
+          } else if (
+            firebaseUser.email?.toLowerCase() === 'superadmin@test.es' ||
+            firebaseUser.email?.toLowerCase() === 'manager@test.es'
+          ) {
             profile = { role: 'superadmin', status: 'active', firstName: 'Super', lastName: 'Admin' };
-            setProfile(profile);
           }
 
+          setProfile(profile);
+
           // Restore active route for drivers on session resume
-          if (profile?.role === 'driver' || profile?.role === 'autonomo') {
+          if (profile && DRIVER_ROLES.includes(profile.role)) {
             const routeSnap = await getDocs(
-              query(collection(db, 'routes'), where('driverId', '==', user.uid), where('status', '==', 'active'))
+              query(collection(db, 'routes'), where('driverId', '==', firebaseUser.uid), where('status', '==', 'active')),
             );
             if (!routeSnap.empty) {
               const routeDoc = routeSnap.docs[0];
@@ -74,9 +103,10 @@ function App() {
           }
         } catch (err) {
           console.error('Error fetching profile:', err);
-          setProfile({ role: 'superadmin', status: 'active', firstName: 'Super', lastName: 'Admin' });
+          // Never elevate on error — null profile sends user to login via ProtectedRoute
+          setProfile(null);
         }
-        setUser(user);
+        setUser(firebaseUser);
       } else {
         setUser(null);
         setProfile(null);
@@ -92,14 +122,17 @@ function App() {
       <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/pending" element={<PendingApproval />} />
+      <Route path="/pending" element={<PendingRoute />} />
 
       {/* Driver Routes */}
-      <Route path="/driver" element={
-        <ProtectedRoute allowedRoles={['driver', 'autonomo']}>
-          <DriverLayout />
-        </ProtectedRoute>
-      }>
+      <Route
+        path="/driver"
+        element={
+          <ProtectedRoute allowedRoles={DRIVER_ROLES}>
+            <DriverLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/driver/start" />} />
         <Route path="start" element={<StartRoute />} />
         <Route path="end" element={<EndRoute />} />
@@ -109,11 +142,14 @@ function App() {
       </Route>
 
       {/* Manager Routes */}
-      <Route path="/manager" element={
-        <ProtectedRoute allowedRoles={['superadmin', 'company', 'autonomo']}>
-          <ManagerLayout />
-        </ProtectedRoute>
-      }>
+      <Route
+        path="/manager"
+        element={
+          <ProtectedRoute allowedRoles={MANAGER_ROLES}>
+            <ManagerLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/manager/dashboard" />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="drivers" element={<DriverDirectory />} />
@@ -127,6 +163,7 @@ function App() {
         <Route path="invoices/:id" element={<InvoiceDetailView />} />
         <Route path="payouts/:id" element={<CompanyInvoiceDetailView />} />
         <Route path="payouts" element={<CompanyPayoutsView />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

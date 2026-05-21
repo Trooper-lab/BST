@@ -72,10 +72,7 @@ const DriverDirectory = () => {
     }
 
     const unsub = onSnapshot(q, (snap) => {
-      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() as any }));
-      if (profile.role !== 'company') {
-        docs = docs.filter(d => !(d.companyId && d.status === 'pending'));
-      }
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() as any }));
       setDrivers(docs);
       setLoading(false);
     });

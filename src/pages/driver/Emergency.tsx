@@ -28,13 +28,22 @@ export default function Emergency() {
     setLoading(true);
 
     try {
-      // Get location for emergency
+      // Best-effort GPS — 5 s timeout; never blocks the send
       let location = null;
-      if (navigator.geolocation) {
-        const pos: any = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
-        });
-        location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      try {
+        if (navigator.geolocation) {
+          const pos = await Promise.race<GeolocationPosition>([
+            new Promise((resolve, reject) =>
+              navigator.geolocation.getCurrentPosition(resolve, reject),
+            ),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('GPS timeout')), 5000),
+            ),
+          ]);
+          location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        }
+      } catch {
+        // GPS unavailable or timed out — send without location
       }
 
       await addDoc(collection(db, 'emergencies'), {

@@ -17,12 +17,13 @@ export default function Login() {
   const { user, profile, isLoading } = useAuthStore();
 
   React.useEffect(() => {
-    if (!isLoading && user && profile) {
-      if (['superadmin', 'admin', 'company', 'employee'].includes(profile.role)) {
-        navigate('/manager/dashboard');
-      } else {
-        navigate('/driver');
-      }
+    if (isLoading || !user || !profile) return;
+    if (profile.status === 'pending') {
+      navigate('/pending');
+    } else if (['superadmin', 'company', 'autonomo'].includes(profile.role)) {
+      navigate('/manager/dashboard');
+    } else {
+      navigate('/driver');
     }
   }, [user, profile, isLoading, navigate]);
 

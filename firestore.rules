@@ -60,5 +60,11 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isSignedIn() && resource.data.companyId == request.auth.uid);
       allow write: if isSuperAdmin();
     }
+
+    // Holidays collection (custom festivos added by superadmin)
+    match /holidays/{holidayId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
   }
 }

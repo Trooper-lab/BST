@@ -11,19 +11,7 @@ import {
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CompanyOverview from './CompanyOverview';
-
-const VEHICLE_TYPES = [
-  { value: 'vehic_gas',     label: 'VEHÍC. GAS',    co2: 0.18 },
-  { value: 'veh_gas_mixto', label: 'VEH.GAS-MIXTO', co2: 0.22 },
-  { value: 'furgo_gas',     label: 'FURGO GAS',     co2: 0.12 },
-  { value: 'veh_faltantes', label: 'VEH.FALTANTES', co2: 0.00 },
-];
-
-const co2Factor = (vehicleType: string) =>
-  VEHICLE_TYPES.find(v => v.value === vehicleType)?.co2 ?? 0.20;
-
-const vehicleLabel = (vehicleType: string) =>
-  VEHICLE_TYPES.find(v => v.value === vehicleType)?.label ?? 'No asignado';
+import { VEHICLE_TYPES, co2Factor, vehicleLabel } from '../../lib/vehicleTypes';
 
 export default function DriverProfile() {
   const { id } = useParams();

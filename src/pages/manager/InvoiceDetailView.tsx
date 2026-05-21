@@ -6,6 +6,7 @@ import { doc, getDoc, updateDoc, addDoc, collection, query, where, getDocs } fro
 import { useAuthStore } from '../../store/useAuthStore';
 import { FileText, ArrowLeft, Loader2, Save, AlertCircle, Building2 } from 'lucide-react';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import { isHoliday } from '../../lib/holidays';
 
 type InvoiceRow = {
   id: string;
@@ -115,52 +116,96 @@ export default function InvoiceDetailView() {
           locationDefaults = locDoc.data().invoiceDefaults || {};
         }
 
-        // 3. Fetch Routes to calculate base quantities
+        // 3. Fetch Routes + Drivers to calculate base quantities
         const [year, month] = invData.period.split('-');
         const periodDate = new Date(Number(year), Number(month) - 1, 1);
         const start = startOfMonth(periodDate);
         const end = endOfMonth(periodDate);
-        
+
+        // Fetch all users for vehicleType fallback on old routes
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const driverVehicleMap: Record<string, string> = {};
+        usersSnap.docs.forEach(d => {
+          const u = d.data();
+          if (u.vehicleType) driverVehicleMap[d.id] = u.vehicleType;
+        });
+
         const routesQ = query(collection(db, 'routes'), where('status', '==', 'completed'));
         const routesSnap = await getDocs(routesQ);
-        
-        let totalRoutes = 0;
-        let totalKm = 0;
-        
-        routesSnap.docs.forEach(d => {
-          const r = d.data();
-          if (r.endCenter === invData.centerName) {
-            if (!r.endTime) return;
+
+        // Filter to routes at this center in this period
+        const centerRoutes = routesSnap.docs
+          .map(d => ({ id: d.id, ...d.data() as any }))
+          .filter(r => {
+            if (r.endCenter !== invData.centerName) return false;
+            if (!r.endTime) return false;
             const rt = r.endTime.toDate ? r.endTime.toDate() : new Date(r.endTime);
-            if (rt >= start && rt <= end) {
-              totalRoutes++;
-              totalKm += ((Number(r.endKm) || 0) - (Number(r.startKm) || 0));
-            }
-          }
-        });
+            return rt >= start && rt <= end;
+          })
+          .map(r => {
+            // Fallback: derive vehicleType from driver profile for old routes
+            const vt = r.vehicleType || driverVehicleMap[r.driverId] || '';
+            // Fallback: derive isHoliday for old routes that don't have the field
+            const routeDate = r.endTime?.toDate ? r.endTime.toDate() : new Date(r.endTime);
+            const holiday = r.isHoliday !== undefined ? r.isHoliday : isHoliday(routeDate);
+            return { ...r, vehicleType: vt, isHoliday: holiday };
+          });
+
+        // --- Aggregate quantities ---
+        const totalKm = centerRoutes.reduce((a, r) => a + ((Number(r.endKm) || 0) - (Number(r.startKm) || 0)), 0);
+
+        // Distinct vehicle counts per type (unique driverIds per vehicleType)
+        const vehicGasDrivers  = new Set(centerRoutes.filter(r => r.vehicleType === 'vehic_gas').map(r => r.driverId));
+        const vehicMixtoDrivers = new Set(centerRoutes.filter(r => r.vehicleType === 'veh_gas_mixto').map(r => r.driverId));
+        const furgoDrivers     = new Set(centerRoutes.filter(r => r.vehicleType === 'furgo_gas').map(r => r.driverId));
+
+        // AC (helper) count — distinct drivers whose routes had a helper present
+        const acDrivers = new Set(centerRoutes.filter(r => r.hasHelper).map(r => r.driverId));
+
+        // Festivos — number of route-days on holidays
+        const festivoRoutes    = centerRoutes.filter(r => r.isHoliday);
+        const festivosDiaEnt   = festivoRoutes.length;
+        const festivosAc       = festivoRoutes.filter(r => r.hasHelper).length;
+
+        // Extra hours split by holiday
+        const getExtraHours = (r: any) => {
+          if (r.extraHours !== undefined) return Number(r.extraHours);
+          // Fallback for old routes: markedHours was 9 by default
+          return Math.max(0, (Number(r.autoHours) || 0) - 9);
+        };
+        const horasExtrasNormal  = centerRoutes.filter(r => !r.isHoliday).reduce((a, r) => a + getExtraHours(r), 0);
+        const horasExtrasFestiva = centerRoutes.filter(r => r.isHoliday).reduce((a, r) => a + getExtraHours(r), 0);
+
+        const autoQty: Record<string, number> = {
+          vehicGas:             vehicGasDrivers.size,
+          vehicGasMixto:        vehicMixtoDrivers.size,
+          furgoGas:             furgoDrivers.size,
+          acFijo:               acDrivers.size,
+          festivosFijoDiaEnt:   festivosDiaEnt,
+          festivosFijoAc:       festivosAc,
+          festivosNoFijoDiaEnt: festivosDiaEnt,
+          festivosNoFijoAc:     festivosAc,
+          horasExtrasVehNormal:  parseFloat(horasExtrasNormal.toFixed(2)),
+          horasExtrasVehFestiva: parseFloat(horasExtrasFestiva.toFixed(2)),
+          horasExtrasAcNormal:   parseFloat(horasExtrasNormal.toFixed(2)),
+          horasExtrasAcFestiva:  parseFloat(horasExtrasFestiva.toFixed(2)),
+          km: parseFloat(totalKm.toFixed(1)),
+        };
 
         // 4. Merge data into rows
         const currentRows = [...rows];
-        
+
         currentRows.forEach(row => {
-          // Priority: 1. Existing Invoice data, 2. Location defaults, 3. Auto-calculated quantities, 4. 0
-          
+          // Priority: 1. Existing Invoice data, 2. Auto-calculated quantities + Location PVP defaults, 3. 0
           if (invData.rowsData && invData.rowsData[row.id]) {
             row.cantidad = invData.rowsData[row.id].cantidad;
             row.pvp = invData.rowsData[row.id].pvp;
           } else {
-            // Apply location default PVP
             if (locationDefaults[row.id]) {
               row.pvp = locationDefaults[row.id].pvp;
             }
-            
-            // Auto calculate some quantities based on routes
-            if (row.id === 'km') {
-              row.cantidad = totalKm;
-            } else if (row.id === 'acFijo' || row.id === 'vehicGas') {
-              // Just a dummy auto-calculation for example (assuming 1 vehicle per X routes)
-              // In production you would cross-reference driver profiles to count exact vehicle types.
-              if (row.id === 'vehicGas') row.cantidad = Math.ceil(totalRoutes / 20);
+            if (autoQty[row.id] !== undefined) {
+              row.cantidad = autoQty[row.id];
             }
           }
         });
